@@ -65,28 +65,36 @@ def sample_in_batch(config):
         gpu=0,
     )
 
-    all_rows = []
-    for reaction_idx, reaction in enumerate(reactions):
-        print(
-            f"======== Reaction {reaction_idx + 1}/{len(reactions)} "
-            f"product={reaction.product} target_class={reaction.target_class}"
+    # Batched inference: RetroPrime's wrapper subprocesses run_example.sh,
+    # which loads two large OpenNMT models from scratch every call (~60s of
+    # torch startup tax per call). Calling the wrapper once with all
+    # products amortizes that cost across the whole batch — for a 50-product
+    # slurm task this is the difference between ~50 minutes and ~5 minutes.
+    mols = [Molecule(r.product, canonicalize=False) for r in reactions]
+    print(f"======== running batched inference on {len(mols)} products")
+    t0 = time.time()
+    with torch.no_grad():
+        results = model(
+            mols,
+            num_results=int(config.single_step_model.default_num_results),
         )
-        t0 = time.time()
-        with torch.no_grad():
-            results = model(
-                [Molecule(reaction.product, canonicalize=False)],
-                num_results=int(config.single_step_model.default_num_results),
-            )
-        sampling_time_s = time.time() - t0
-        rows = get_rows_per_batch([reaction], results)
-        for row in rows:
-            row["sampling_time_s"] = sampling_time_s
-            row["model_type"] = config.single_step_model.model_type
-        all_rows.extend(rows)
-        del results
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    total_time = time.time() - t0
+    print(f"======== batched inference done in {total_time:.1f}s "
+          f"({total_time / max(len(mols), 1):.2f}s/product)")
+
+    rows = get_rows_per_batch(reactions, results)
+    # The wrapper batches into a single subprocess call, so per-product time
+    # is not directly measured. Record the amortized average so downstream
+    # analysis sees a sensible value.
+    per_row_time = total_time / max(len(mols), 1)
+    for row in rows:
+        row["sampling_time_s"] = per_row_time
+        row["model_type"] = config.single_step_model.model_type
+    all_rows = rows
+    del results
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     df = pd.DataFrame(all_rows)
     out_name = (
