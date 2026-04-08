@@ -169,11 +169,6 @@ def add_platform_specific_slurm_commands(fh, slurm_args):
             fh.writelines(f"export WANDB_CACHE_DIR=/scratch/{slurm_args['project']}/wandb_cache\n")
             fh.writelines(f"export MPLCONFIGDIR=/scratch/{slurm_args['project']}\n")
     elif slurm_args['platform'] == 'puhti' or slurm_args['platform'] == 'mahti':
-        # Slurm runs the .job script with non-interactive non-login bash, so
-        # /etc/profile.d/* and lmod aren't auto-sourced. Source the CSC env
-        # init explicitly so the `module` function is defined before the
-        # `module load` lines below.
-        fh.writelines("source /appl/profile/zz-csc-env.sh\n")
         # Rest of puhti code unchanged
 
         # #SBATCH --partition=gpusmall
@@ -192,6 +187,11 @@ def add_platform_specific_slurm_commands(fh, slurm_args):
                 fh.writelines(f"#SBATCH --gres=gpu:v100:{slurm_args['gpus-per-node']}\n")
         fh.writelines(f"#SBATCH --cpus-per-task={slurm_args['cpus-per-task']}\n")
         fh.writelines(f"#SBATCH --mem-per-cpu={slurm_args['mem']}\n")
+        # Slurm runs the .job script with non-interactive non-login bash, so
+        # /etc/profile.d/* and lmod aren't auto-sourced. Source the CSC env
+        # init *after* all #SBATCH directives so the parser doesn't stop
+        # short of the headers below it.
+        fh.writelines("source /appl/profile/zz-csc-env.sh\n")
         fh.writelines("HYDRA_FULL_ERROR=1\n\n")
         fh.writelines(f"export WANDB_CACHE_DIR=/scratch/{slurm_args['project']}/wandb\n")
         fh.writelines(f"export WANDB_DATA_DIR=/scratch/{slurm_args['project']}/wandb\n")
