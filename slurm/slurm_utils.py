@@ -169,6 +169,11 @@ def add_platform_specific_slurm_commands(fh, slurm_args):
             fh.writelines(f"export WANDB_CACHE_DIR=/scratch/{slurm_args['project']}/wandb_cache\n")
             fh.writelines(f"export MPLCONFIGDIR=/scratch/{slurm_args['project']}\n")
     elif slurm_args['platform'] == 'puhti' or slurm_args['platform'] == 'mahti':
+        # Slurm runs the .job script with non-interactive non-login bash, so
+        # /etc/profile.d/* and lmod aren't auto-sourced. Source the CSC env
+        # init explicitly so the `module` function is defined before the
+        # `module load` lines below.
+        fh.writelines("source /appl/profile/zz-csc-env.sh\n")
         # Rest of puhti code unchanged
 
         # #SBATCH --partition=gpusmall
@@ -223,6 +228,9 @@ def add_script_commands_puhti(script_args, slurm_args, fh=None, with_python=True
     with open(job_file, 'w') as fj:
         print(f'PROJECT_ROOT: {PROJECT_ROOT}')
         fj.writelines(f"#!/bin/bash\n")
+        # srun gives the inner script a fresh shell — re-source CSC env init
+        # so the `module` function is defined inside the .sh too.
+        fj.writelines("source /appl/profile/zz-csc-env.sh\n")
         fj.writelines(f"module purge\n")
         fj.writelines(f"module load {slurm_args['puhti_module']}\n")
         # PYTHONUSERBASE makes Python pick up packages installed via
