@@ -1,0 +1,8 @@
+model_type: retroprime
+# Stage your downloaded checkpoints here. Two subdirs are required:
+#   {model_dir}/USPTO-50K_pos_pred/USPTO-50K_pos_pred_model_step_90000.pt
+#   {model_dir}/USPTO-50K_S2R/USPTO-50K_S2R_model_step_100000.pt
+model_dir: ${oc.env:RETROPRIME_CHECKPOINTS,/home/laabidn1/laabidn1/RetroPrime/checkpoints}
+beam_size: 10
+default_num_results: 10
+use_cache: true

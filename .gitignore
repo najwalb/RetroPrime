@@ -1,5 +1,10 @@
-./databox/
-*.egg-info
-.rar
-retroprime/*.zip
-retroprime/data_process/SmilesEnumerator/*.egg-info
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+data/
+checkpoints/
+experiments/
+slurm/jobs/
+slurm/output/
+*.egg-info/

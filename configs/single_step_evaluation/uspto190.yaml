@@ -1,0 +1,4 @@
+data_dir: data/uspto190/processed
+subset: test.csv
+start_idx: 0
+end_idx: 50

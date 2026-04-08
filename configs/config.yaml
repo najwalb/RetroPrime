@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+  - single_step_model: retroprime
+  - single_step_evaluation: uspto190
+
+general:
+  seed: 42
+  experiment_group: failures_analysis
+  experiment_name: retroprime_uspto190
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
