@@ -6,6 +6,19 @@ cache_dir=${output_dir}/cache
 beam_size=$3
 core=8
 gpu=0
+# Translator batch size. Override with RETROPRIME_BATCH_SIZE env var.
+# Default scales inversely with beam_size to keep peak GPU memory roughly
+# constant: beam=10 → batch=64 (original), beam=100 → batch=6.
+# Without this, beam=100 OOMs the S2R decoder on a 32GB v100 (the
+# transformer caches per-step inputs proportional to batch * beam * length).
+if [ -z "${RETROPRIME_BATCH_SIZE}" ]; then
+    batch_size=$(( 640 / beam_size ))
+    if [ "${batch_size}" -lt 1 ]; then batch_size=1; fi
+else
+    batch_size=${RETROPRIME_BATCH_SIZE}
+fi
+# Reduce CUDA fragmentation so freed beam-step caches can be reused.
+export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-max_split_size_mb:128}
 if [ ! -e ${output_dir} ];
 then
     mkdir -p ${output_dir}
@@ -28,7 +41,7 @@ CUDA_VISIBLE_DEVICES=${gpu} python ${transformer_root}/translate.py -gpu ${gpu} 
                     -model ${model_P2S} \
                     -src ${output_dir}/canonical_token_for_input.txt \
                     -output ${output_dir}/synthon_predicted.txt \
-                    -batch_size 64 -replace_unk -max_length 200 -beam_size ${beam_size} -n_best ${beam_size}
+                    -batch_size ${batch_size} -replace_unk -max_length 200 -beam_size ${beam_size} -n_best ${beam_size}
 python ${to_stage2_scritp_root}/evaluate.py -beam_size ${beam_size}\
 		      -src_file ${output_dir}/canonical_token_for_input.txt \
 		      -pre_file ${output_dir}/synthon_predicted.txt \
@@ -42,7 +55,7 @@ CUDA_VISIBLE_DEVICES=${gpu} python ${transformer_root}/translate.py -gpu ${gpu} 
                     -model ${model_S2R} \
                     -src ${output_dir}/to_synthon_tokenlized.txt \
                     -output ${output_dir}/reactants_predicted.txt \
-                    -batch_size 64 -replace_unk -max_length 200 -beam_size ${beam_size} -n_best ${beam_size}
+                    -batch_size ${batch_size} -replace_unk -max_length 200 -beam_size ${beam_size} -n_best ${beam_size}
 python ${to_stage2_scritp_root}/mix_c2c_top3_after_rerank.py \
                     -pre_file ${output_dir}/reactants_predicted.txt \
                     -mix_save_file  ${output_dir}/reactants_predicted_mix.txt \
